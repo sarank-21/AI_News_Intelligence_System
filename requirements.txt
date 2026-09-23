@@ -1,0 +1,17 @@
+streamlit
+torch
+transformers
+accelerate
+sentencepiece
+spacy
+pandas
+numpy
+scikit-learn
+joblib
+safetensors
+ftfy
+textblob
+langdetect
+bs4
+matplotlib
+seaborn
