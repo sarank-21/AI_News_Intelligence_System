@@ -35,24 +35,102 @@ MODEL_DIR = os.path.join(
 )
 
 # ============================================================
+# DEBUG / VALIDATION
+# ============================================================
+
+print("============================================")
+print("CLASSIFIER MODEL LOADING")
+print("============================================")
+
+print("BASE_DIR:")
+print(BASE_DIR)
+
+print("\nMODEL_DIR:")
+print(MODEL_DIR)
+
+print("\nMODEL DIRECTORY EXISTS:")
+print(os.path.isdir(MODEL_DIR))
+
+if not os.path.isdir(MODEL_DIR):
+
+    raise FileNotFoundError(
+        f"""
+Classifier model directory was not found.
+
+Expected location:
+{MODEL_DIR}
+
+Please make sure the following folder exists
+in your GitHub repository:
+
+models/classifier/
+"""
+    )
+
+print("\nMODEL DIRECTORY CONTENTS:")
+
+for filename in os.listdir(MODEL_DIR):
+    print(" -", filename)
+
+# ============================================================
+# CHECK REQUIRED FILES
+# ============================================================
+
+required_files = [
+    "config.json",
+    "mlb.pkl",
+    "thresholds.pkl",
+    "max_length.pkl"
+]
+
+missing_files = []
+
+for filename in required_files:
+
+    file_path = os.path.join(
+        MODEL_DIR,
+        filename
+    )
+
+    if not os.path.isfile(file_path):
+        missing_files.append(filename)
+
+if missing_files:
+
+    raise FileNotFoundError(
+        "Missing classifier model files: "
+        + ", ".join(missing_files)
+    )
+
+# ============================================================
 # LOAD TOKENIZER
 # ============================================================
 
+print("\nLoading tokenizer...")
+
 tokenizer = AutoTokenizer.from_pretrained(
-    MODEL_DIR
+    MODEL_DIR,
+    local_files_only=True
 )
+
+print("Tokenizer loaded successfully.")
 
 # ============================================================
 # LOAD MODEL
 # ============================================================
 
+print("\nLoading classification model...")
+
 model = AutoModelForSequenceClassification.from_pretrained(
-    MODEL_DIR
+    MODEL_DIR,
+    local_files_only=True
 )
 
 model.to(DEVICE)
 
 model.eval()
+
+print("Model loaded successfully.")
 
 # ============================================================
 # LOAD MULTI LABEL BINARIZER
@@ -87,6 +165,11 @@ MAX_LENGTH = joblib.load(
     )
 )
 
+print("\nClassifier configuration loaded.")
+
+print("Number of classes:", len(mlb.classes_))
+print("MAX_LENGTH:", MAX_LENGTH)
+
 # ============================================================
 # PREDICTION FUNCTION
 # ============================================================
@@ -100,15 +183,10 @@ def predict_categories(text):
     # ========================================================
 
     encoding = tokenizer(
-
         text,
-
         truncation=True,
-
         padding="max_length",
-
         max_length=MAX_LENGTH,
-
         return_tensors="pt"
     )
 
@@ -131,9 +209,7 @@ def predict_categories(text):
     with torch.no_grad():
 
         outputs = model(
-
             input_ids=input_ids,
-
             attention_mask=attention_mask
         )
 
@@ -144,10 +220,8 @@ def predict_categories(text):
         ).cpu().numpy()[0]
 
     # ========================================================
-    # MULTI-LABEL PREDICTION LOGIC
+    # MULTI-LABEL PREDICTION
     # ========================================================
-
-    # More flexible threshold
 
     CUSTOM_THRESHOLD = 0.20
 
@@ -155,8 +229,9 @@ def predict_categories(text):
         probs >= CUSTOM_THRESHOLD
     ).astype(int)
 
-    # Fallback:
-    # Ensure at least one category
+    # ========================================================
+    # FALLBACK
+    # ========================================================
 
     if predicted.sum() == 0:
 
@@ -168,7 +243,10 @@ def predict_categories(text):
     # RESHAPE FOR MLB
     # ========================================================
 
-    predicted = predicted.reshape(1, -1)
+    predicted = predicted.reshape(
+        1,
+        -1
+    )
 
     # ========================================================
     # DECODE LABELS
@@ -184,7 +262,10 @@ def predict_categories(text):
 
     probability_dict = {
 
-        label: round(float(prob), 4)
+        label: round(
+            float(prob),
+            4
+        )
 
         for label, prob in zip(
             mlb.classes_,
@@ -197,13 +278,9 @@ def predict_categories(text):
     # ========================================================
 
     probability_dict = dict(
-
         sorted(
-
             probability_dict.items(),
-
             key=lambda x: x[1],
-
             reverse=True
         )
     )
@@ -218,6 +295,7 @@ def predict_categories(text):
 
         "probabilities": probability_dict
     }
+
 
 # ============================================================
 # SAMPLE TEST
